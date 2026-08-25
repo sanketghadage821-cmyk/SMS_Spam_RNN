@@ -1,6 +1,5 @@
 Flask
 gunicorn
-keras
 tensorflow
-h5py
 numpy
+scikit-learn
