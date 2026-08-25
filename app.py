@@ -1,91 +1,246 @@
-import os
+from flask import Flask, request, render_template_string
 import pickle
 import numpy as np
-from flask import Flask, request, render_template
 
 app = Flask(__name__)
 
-# ---------------------------------------------------------------------------
-# Load Saved Assets
-# ---------------------------------------------------------------------------
-MODEL_PATH = 'model.pkl'
-TOKENIZER_PATH = 'tokenizer.pkl'  # If you saved your Tokenizer separately
+# ============================================================
+# LOAD MODEL
+# ============================================================
 
-# Load trained RNN model
-with open(MODEL_PATH, 'rb') as f:
-    model = pickle.load(f)
+MODEL_PATH = "model.pkl"
 
-# Load Tokenizer if available; fallback to word hashing if not present
-tokenizer = None
-if os.path.exists(TOKENIZER_PATH):
-    with open(TOKENIZER_PATH, 'rb') as f:
-        tokenizer = pickle.load(f)
-
-# Model configuration constants
-MAX_LEN = 50        # Input sequence length matching model requirements
-VOCAB_SIZE = 5000   # Vocabulary size threshold
+try:
+    with open(MODEL_PATH, "rb") as file:
+        model = pickle.load(file)
+    print("Model loaded successfully.")
+except Exception as e:
+    model = None
+    print("ERROR loading model:", e)
 
 
-def preprocess_text(text):
-    """
-    Preprocesses raw text input to match the sequence format required by the RNN.
-    """
-    text = text.strip().lower()
-    
-    if tokenizer is not None:
-        # Standard Keras Tokenizer sequence transformation
-        sequences = tokenizer.texts_to_sequences([text])
-        sequence = sequences[0]
-    else:
-        # Fallback sequence encoding via modulo hashing
-        words = text.split()
-        sequence = [(abs(hash(w)) % (VOCAB_SIZE - 1)) + 1 for w in words]
+# ============================================================
+# HTML + CSS
+# ============================================================
 
-    # Apply padding to match input shape [1, 50]
-    if len(sequence) < MAX_LEN:
-        padded = [0] * (MAX_LEN - len(sequence)) + sequence
-    else:
-        padded = sequence[:MAX_LEN]
+HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SMS Spam Detector</title>
 
-    return np.array([padded], dtype=np.float32)
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 600px;
+            background: white;
+            padding: 35px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #777;
+            margin-bottom: 25px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 150px;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 16px;
+            resize: none;
+            outline: none;
+        }
+
+        textarea:focus {
+            border-color: #667eea;
+        }
+
+        button {
+            width: 100%;
+            margin-top: 20px;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            background: #667eea;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #5568d8;
+        }
+
+        .result {
+            margin-top: 25px;
+            padding: 18px;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 20px;
+            font-weight: bold;
+            background: #f1f1f1;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            color: #999;
+            font-size: 13px;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>📱 SMS Spam Detector</h1>
+
+    <div class="subtitle">
+        Enter an SMS message to check whether it is Spam or Not Spam.
+    </div>
+
+    <form method="POST">
+
+        <textarea
+            name="message"
+            placeholder="Enter your SMS message here..."
+            required
+        >{{ message }}</textarea>
+
+        <button type="submit">
+            Check Message
+        </button>
+
+    </form>
+
+    {% if prediction %}
+        <div class="result">
+            {{ prediction }}
+        </div>
+    {% endif %}
+
+    <div class="footer">
+        SMS Spam Detection using RNN
+    </div>
+
+</div>
+
+</body>
+</html>
+"""
 
 
-# ---------------------------------------------------------------------------
-# Flask Routes
-# ---------------------------------------------------------------------------
-@app.route('/')
+# ============================================================
+# PREDICTION FUNCTION
+# ============================================================
+
+def predict_message(message):
+
+    if model is None:
+        return "❌ Model could not be loaded."
+
+    try:
+
+        # Try prediction directly
+        prediction = model.predict([message])
+
+        value = prediction[0]
+
+        # Handle numpy arrays
+        if isinstance(value, (list, tuple, np.ndarray)):
+            value = np.array(value).flatten()[0]
+
+        value = float(value)
+
+        if value >= 0.5:
+            return "🚨 SPAM MESSAGE"
+
+        else:
+            return "✅ NOT SPAM"
+
+    except Exception as e:
+
+        print("Prediction error:", e)
+
+        return "❌ Prediction error. Check your model and preprocessing."
+
+
+# ============================================================
+# HOME PAGE
+# ============================================================
+
+@app.route("/", methods=["GET", "POST"])
 def home():
-    return render_template('index.html')
 
+    prediction = None
+    message = ""
 
-@app.route('/predict', methods=['POST'])
-def predict():
-    sms_input = request.form.get('text_input', '')
-    
-    if not sms_input.strip():
-        return render_template('index.html', error="Please enter a valid message.")
+    if request.method == "POST":
 
-    # 1. Preprocess the input SMS
-    processed_input = preprocess_text(sms_input)
+        message = request.form.get("message", "").strip()
 
-    # 2. Generate prediction score from the RNN model
-    raw_prediction = model.predict(processed_input)[0][0]
-    
-    # 3. Process threshold (Binary classification: > 0.5 is Spam)
-    is_spam = raw_prediction > 0.5
-    label = "Spam" if is_spam else "Ham (Legitimate)"
-    confidence = float(raw_prediction if is_spam else 1.0 - raw_prediction) * 100
+        if message:
 
-    return render_template(
-        'index.html',
-        result=label,
-        confidence=f"{confidence:.2f}%",
-        user_input=sms_input,
-        is_spam=is_spam
+            prediction = predict_message(message)
+
+        else:
+
+            prediction = "⚠️ Please enter a message."
+
+    return render_template_string(
+        HTML,
+        prediction=prediction,
+        message=message
     )
 
 
-if __name__ == '__main__':
-    # Render binds dynamic port via PORT environment variable
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+# ============================================================
+# HEALTH CHECK
+# ============================================================
+
+@app.route("/health")
+def health():
+
+    return "SMS Spam Detection App is running successfully!"
+
+
+# ============================================================
+# RUN APP
+# ============================================================
+
+if __name__ == "__main__":
+
+    app.run(
+        host="0.0.0.0",
+        port=5000,
+        debug=False
+    )
