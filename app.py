@@ -1,7 +1,17 @@
 ```python
 import streamlit as st
+import numpy as np
 import pickle
 import os
+
+# TensorFlow
+from tensorflow.keras.models import load_model
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+
+
+# --------------------------------------------------
+# PAGE CONFIG
+# --------------------------------------------------
 
 st.set_page_config(
     page_title="SMS Spam Detector",
@@ -9,175 +19,117 @@ st.set_page_config(
     layout="centered"
 )
 
-# ---------- CSS ----------
+
+# --------------------------------------------------
+# CUSTOM CSS
+# --------------------------------------------------
+
 st.markdown("""
 <style>
-.main {
+
+.stApp {
     background-color: #0f172a;
 }
 
 .title {
     text-align: center;
-    font-size: 38px;
+    font-size: 40px;
     font-weight: bold;
-    color: #ffffff;
+    color: white;
+    margin-bottom: 5px;
 }
 
 .subtitle {
     text-align: center;
     color: #94a3b8;
+    font-size: 17px;
     margin-bottom: 30px;
 }
 
-.card {
+.box {
     background-color: #1e293b;
-    padding: 30px;
+    padding: 25px;
     border-radius: 15px;
     border: 1px solid #334155;
 }
 
 .spam {
     background-color: #7f1d1d;
+    border: 1px solid #ef4444;
     color: #fecaca;
     padding: 20px;
-    border-radius: 10px;
+    border-radius: 12px;
     text-align: center;
-    font-size: 24px;
+    font-size: 25px;
     font-weight: bold;
 }
 
-.notspam {
+.ham {
     background-color: #064e3b;
+    border: 1px solid #10b981;
     color: #a7f3d0;
     padding: 20px;
-    border-radius: 10px;
+    border-radius: 12px;
     text-align: center;
-    font-size: 24px;
+    font-size: 25px;
     font-weight: bold;
 }
 
-.error {
-    color: #fca5a5;
-}
 </style>
 """, unsafe_allow_html=True)
 
 
-# ---------- Load Model ----------
-@st.cache_resource
-def load_model():
+# --------------------------------------------------
+# HEADER
+# --------------------------------------------------
 
-    possible_files = [
-        "model.pkl",
-        "model (1).pkl"
-    ]
-
-    for file_name in possible_files:
-        if os.path.exists(file_name):
-            with open(file_name, "rb") as file:
-                return pickle.load(file)
-
-    return None
-
-
-model = load_model()
-
-
-# ---------- Header ----------
 st.markdown(
     '<div class="title">📱 SMS Spam Detector</div>',
     unsafe_allow_html=True
 )
 
 st.markdown(
-    '<div class="subtitle">Enter an SMS message and check whether it is Spam or Not Spam</div>',
+    '<div class="subtitle">Machine Learning / RNN based SMS classification</div>',
     unsafe_allow_html=True
 )
 
 
-# ---------- Model Check ----------
-if model is None:
+# --------------------------------------------------
+# LOAD MODEL
+# --------------------------------------------------
 
-    st.error(
-        "Model file not found. Please upload model.pkl "
-        "or model (1).pkl to the GitHub repository."
-    )
+@st.cache_resource
+def load_prediction_model():
 
-else:
+    # Try Keras model files
+    keras_files = [
+        "model.keras",
+        "model.h5",
+        "sms_spam_model.h5"
+    ]
 
-    st.markdown('<div class="card">', unsafe_allow_html=True)
+    for filename in keras_files:
 
-    message = st.text_area(
-        "Enter SMS Message",
-        placeholder="Example: Congratulations! You won a free prize. Call now!",
-        height=150
-    )
+        if os.path.exists(filename):
 
-    predict_button = st.button(
-        "🔍 Check Message",
-        use_container_width=True
-    )
+            try:
+                return load_model(filename), "keras"
 
-    st.markdown('</div>', unsafe_allow_html=True)
+            except Exception:
+                pass
 
 
-    # ---------- Prediction ----------
-    if predict_button:
+    # Try pickle model
+    pickle_files = [
+        "model.pkl",
+        "model (1).pkl"
+    ]
 
-        if not message.strip():
+    for filename in pickle_files:
 
-            st.warning("Please enter an SMS message.")
-
-        else:
+        if os.path.exists(filename):
 
             try:
 
-                prediction = model.predict([message])
-
-                value = prediction[0]
-
-                # Handle numeric prediction
-                try:
-                    numeric_value = float(value)
-
-                    if numeric_value >= 0.5:
-                        is_spam = True
-                    else:
-                        is_spam = False
-
-                except (ValueError, TypeError):
-
-                    # Handle text prediction
-                    text_value = str(value).lower()
-
-                    is_spam = text_value in [
-                        "spam",
-                        "1",
-                        "true",
-                        "yes"
-                    ]
-
-
-                st.markdown("---")
-
-                if is_spam:
-
-                    st.markdown(
-                        '<div class="spam">🚨 SPAM MESSAGE</div>',
-                        unsafe_allow_html=True
-                    )
-
-                else:
-
-                    st.markdown(
-                        '<div class="notspam">✅ NOT SPAM</div>',
-                        unsafe_allow_html=True
-                    )
-
-
-            except Exception as e:
-
-                st.error(
-                    f"Prediction failed: {str(e)}"
-                )
+                with open(filename
 ```
