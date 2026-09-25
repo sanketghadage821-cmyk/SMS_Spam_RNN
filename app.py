@@ -1,32 +1,19 @@
-```python
 import streamlit as st
 import numpy as np
 import pickle
 import os
 
-# TensorFlow
 from tensorflow.keras.models import load_model
-from tensorflow.keras.preprocessing.sequence import pad_sequences
-
-
-# --------------------------------------------------
-# PAGE CONFIG
-# --------------------------------------------------
 
 st.set_page_config(
-    page_title="SMS Spam Detector",
-    page_icon="📱",
-    layout="centered"
+page_title="SMS Spam Detector",
+page_icon="📱",
+layout="centered"
 )
 
-
-# --------------------------------------------------
-# CUSTOM CSS
-# --------------------------------------------------
-
 st.markdown("""
-<style>
 
+<style>
 .stApp {
     background-color: #0f172a;
 }
@@ -36,7 +23,6 @@ st.markdown("""
     font-size: 40px;
     font-weight: bold;
     color: white;
-    margin-bottom: 5px;
 }
 
 .subtitle {
@@ -44,13 +30,6 @@ st.markdown("""
     color: #94a3b8;
     font-size: 17px;
     margin-bottom: 30px;
-}
-
-.box {
-    background-color: #1e293b;
-    padding: 25px;
-    border-radius: 15px;
-    border: 1px solid #334155;
 }
 
 .spam {
@@ -74,62 +53,113 @@ st.markdown("""
     font-size: 25px;
     font-weight: bold;
 }
-
 </style>
+
 """, unsafe_allow_html=True)
 
-
-# --------------------------------------------------
-# HEADER
-# --------------------------------------------------
-
 st.markdown(
-    '<div class="title">📱 SMS Spam Detector</div>',
-    unsafe_allow_html=True
+'<div class="title">📱 SMS Spam Detector</div>',
+unsafe_allow_html=True
 )
 
 st.markdown(
-    '<div class="subtitle">Machine Learning / RNN based SMS classification</div>',
-    unsafe_allow_html=True
+'<div class="subtitle">RNN Based SMS Classification</div>',
+unsafe_allow_html=True
 )
-
-
-# --------------------------------------------------
-# LOAD MODEL
-# --------------------------------------------------
 
 @st.cache_resource
 def load_prediction_model():
 
-    # Try Keras model files
-    keras_files = [
-        "model.keras",
-        "model.h5",
-        "sms_spam_model.h5"
-    ]
+```
+# Keras model
+for filename in ["model.keras", "model.h5", "sms_spam_model.h5"]:
 
-    for filename in keras_files:
+    if os.path.exists(filename):
+        try:
+            return load_model(filename), "keras"
+        except Exception:
+            pass
 
-        if os.path.exists(filename):
+# Pickle model
+for filename in ["model.pkl", "model (1).pkl"]:
 
-            try:
-                return load_model(filename), "keras"
+    if os.path.exists(filename):
+        try:
+            with open(filename, "rb") as file:
+                return pickle.load(file), "pickle"
+        except Exception:
+            pass
 
-            except Exception:
-                pass
+return None, None
+```
 
+model, model_type = load_prediction_model()
 
-    # Try pickle model
-    pickle_files = [
-        "model.pkl",
-        "model (1).pkl"
-    ]
+if model is None:
 
-    for filename in pickle_files:
+```
+st.error("❌ Model file not found.")
 
-        if os.path.exists(filename):
+st.write("Make sure your repository contains:")
 
-            try:
+st.code("""
+```
 
-                with open(filename
+model.pkl
+or
+model (1).pkl
+""")
+
+```
+st.stop()
+```
+
+message = st.text_area(
+"Enter SMS Message",
+placeholder="Example: Congratulations! You won a free prize!",
+height=150
+)
+
+if st.button("🔍 Check Message", use_container_width=True):
+
+```
+if not message.strip():
+
+    st.warning("Please enter an SMS message.")
+
+else:
+
+    try:
+
+        if model_type == "pickle":
+
+            prediction = model.predict([message])
+
+            result = str(prediction[0]).lower().strip()
+
+            if result in ["spam", "1", "true", "yes"]:
+
+                st.markdown(
+                    '<div class="spam">🚨 SPAM MESSAGE</div>',
+                    unsafe_allow_html=True
+                )
+
+            else:
+
+                st.markdown(
+                    '<div class="ham">✅ NOT SPAM</div>',
+                    unsafe_allow_html=True
+                )
+
+        else:
+
+            st.info(
+                "Keras model loaded. The original tokenizer is required "
+                "to convert SMS text into the correct RNN input format."
+            )
+
+    except Exception as e:
+
+        st.error("Prediction failed.")
+        st.code(str(e))
 ```
